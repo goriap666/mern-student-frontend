@@ -2,17 +2,20 @@ pipeline {
   agent any
   triggers { pollSCM('H/2 * * * *') }
   environment {
-    SERVER = 'ubuntu@10.0.1.20'
-    SSH    = 'ssh -o StrictHostKeyChecking=no'
+    CI = 'false'                    // stops CRA treating warnings as errors
+    VITE_API_URL = '/api'
+    REACT_APP_API_URL = '/api'
   }
   stages {
+    stage('Build') {
+      steps { sh 'npm ci && npm run build' }
+    }
     stage('Deploy') {
       steps {
         sshagent(['deploy-key']) {
           sh '''
-            rsync -az --delete --exclude node_modules --exclude .git --exclude .env \
-              -e "$SSH" ./ $SERVER:/home/ubuntu/backend/
-            $SSH $SERVER "cd /home/ubuntu/backend && npm ci --omit=dev && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
+            OUT=$( [ -d dist ] && echo dist || echo build )
+            rsync -az --delete -e "ssh -o StrictHostKeyChecking=no" $OUT/ ubuntu@10.0.1.30:/var/www/app/
           '''
         }
       }
